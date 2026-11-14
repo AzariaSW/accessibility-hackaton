@@ -1,0 +1,23 @@
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import { rateLimit } from 'express-rate-limit';
+import pinoHttp from 'pino-http';
+import { logger } from './config/logger.js';
+import { env } from './config/env.js';
+import companiesRouter from './routes/companies.js';
+import registrationsRouter from './routes/registrations.js';
+import { notFound, errorHandler } from './middleware/errors.js';
+
+export const app = express();
+app.disable('x-powered-by');
+app.use(helmet());
+app.use(cors({ origin: env.CORS_ORIGIN.split(',').map(v => v.trim()), methods: ['GET','POST','PUT','OPTIONS'], allowedHeaders: ['Content-Type','X-API-Key','X-Registration-Token'] }));
+app.use(express.json({ limit: '32kb' }));
+app.use(pinoHttp({ logger, autoLogging: { ignore: req => req.url === '/health' } }));
+app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'refugee-verification-api' }));
+app.use('/api/v1/companies', companiesRouter);
+app.use('/api/v1/registrations', registrationsRouter);
+app.use(notFound);
+app.use(errorHandler);
